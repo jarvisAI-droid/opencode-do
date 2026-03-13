@@ -15,10 +15,10 @@ This project showcases how OpenCode's `attach` feature enables connecting the Op
 
 ```bash
 # Connect to the hosted demo
-opencode attach https://opencode-do.vinext.workers.dev
+opencode attach https://opencode-do.southpolesteve.workers.dev
 
 # Or use one-shot mode
-opencode run --attach https://opencode-do.vinext.workers.dev "tell me a joke"
+opencode run --attach https://opencode-do.southpolesteve.workers.dev "tell me a joke"
 ```
 
 ## How it works
