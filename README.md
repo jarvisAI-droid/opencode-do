@@ -49,10 +49,10 @@ opencode run --attach https://opencode-do.southpolesteve.workers.dev "tell me a 
 
 This is a proof-of-concept, not a production system:
 
-- **No authentication** - Anyone can connect and use Workers AI credits
+- **Rate limited** - 20 requests per hour per IP (it's a free demo!)
 - **No tools** - Read, Write, Edit, Bash, etc. are not implemented
 - **No file system** - Can't interact with files
-- **Single model** - Only Llama 3.3 70B via Workers AI
+- **Single model** - Llama 3.2 3B via Workers AI (small but fast)
 - **No streaming** - Responses come all at once, not streamed
 
 ## Deploy your own

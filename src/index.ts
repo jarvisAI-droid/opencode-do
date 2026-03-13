@@ -70,18 +70,25 @@ interface PromptRequest {
 }
 
 // ============================================================================
+// Rate limiting configuration
+// ============================================================================
+
+const RATE_LIMIT_MAX_REQUESTS = 20; // Max requests per window
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour window
+
+// ============================================================================
 // Stub data for TUI bootstrap
 // ============================================================================
 
 const DEFAULT_MODEL = {
-  id: "llama-3.3-70b-instruct-fp8-fast",
+  id: "llama-3.2-3b-instruct",
   providerID: "workers-ai",
   api: {
     id: "workers-ai",
     url: "https://api.cloudflare.com",
     npm: "@cloudflare/ai",
   },
-  name: "Llama 3.3 70B",
+  name: "Llama 3.2 3B",
   family: "llama",
   capabilities: {
     temperature: true,
@@ -107,7 +114,7 @@ const DEFAULT_PROVIDER = {
   env: [],
   options: {},
   models: {
-    "llama-3.3-70b-instruct-fp8-fast": DEFAULT_MODEL,
+    "llama-3.2-3b-instruct": DEFAULT_MODEL,
   },
 };
 
@@ -116,7 +123,7 @@ const DEFAULT_AGENT = {
   description: "Default coding assistant",
   model: {
     providerID: "workers-ai",
-    modelID: "llama-3.3-70b-instruct-fp8-fast",
+    modelID: "llama-3.2-3b-instruct",
   },
 };
 
@@ -184,6 +191,12 @@ export class SessionDO extends DurableObject<Env> {
         data TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at);
+      
+      CREATE TABLE IF NOT EXISTS rate_limits (
+        ip TEXT PRIMARY KEY,
+        request_count INTEGER NOT NULL DEFAULT 0,
+        window_start INTEGER NOT NULL
+      );
     `);
   }
 
@@ -299,7 +312,65 @@ export class SessionDO extends DurableObject<Env> {
     }
   }
 
+  private checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetAt: number } {
+    const now = Date.now();
+    const windowStart = now - RATE_LIMIT_WINDOW_MS;
+    
+    // Clean up old entries and get current count
+    this.sql.exec(`DELETE FROM rate_limits WHERE window_start < ?`, windowStart);
+    
+    const row = this.sql.exec(
+      `SELECT request_count, window_start FROM rate_limits WHERE ip = ?`,
+      ip
+    ).toArray()[0];
+    
+    if (!row) {
+      // First request from this IP
+      this.sql.exec(
+        `INSERT INTO rate_limits (ip, request_count, window_start) VALUES (?, 1, ?)`,
+        ip, now
+      );
+      return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
+    }
+    
+    const count = row.request_count as number;
+    const start = row.window_start as number;
+    
+    if (count >= RATE_LIMIT_MAX_REQUESTS) {
+      return { allowed: false, remaining: 0, resetAt: start + RATE_LIMIT_WINDOW_MS };
+    }
+    
+    // Increment count
+    this.sql.exec(
+      `UPDATE rate_limits SET request_count = request_count + 1 WHERE ip = ?`,
+      ip
+    );
+    
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - count - 1, resetAt: start + RATE_LIMIT_WINDOW_MS };
+  }
+
   private async handleMessage(request: Request, sessionId: string): Promise<Response> {
+    // Check rate limit
+    const ip = request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "unknown";
+    const rateLimit = this.checkRateLimit(ip);
+    
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({
+        error: "Rate limit exceeded",
+        message: `You've reached the limit of ${RATE_LIMIT_MAX_REQUESTS} requests per hour. This is a free demo, please try again later.`,
+        resetAt: rateLimit.resetAt,
+      }), {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "X-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(Math.ceil(rateLimit.resetAt / 1000)),
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+    
     const body = await request.json() as PromptRequest;
 
     const text = body.parts
@@ -307,7 +378,7 @@ export class SessionDO extends DurableObject<Env> {
       .map((p) => p.text)
       .join("\n");
 
-    console.log("Processing message for session:", sessionId);
+    console.log("Processing message for session:", sessionId, "IP:", ip, "Remaining:", rateLimit.remaining);
     console.log("SSE connections:", this.sseWriters.size);
 
     const userMessageId = body.messageID || generateId("msg");
@@ -325,7 +396,7 @@ export class SessionDO extends DurableObject<Env> {
         role: "user",
         time: { created: now },
         agent: body.agent || "default",
-        model: { providerID: "workers-ai", modelID: "llama-3.3-70b-instruct-fp8-fast" },
+        model: { providerID: "workers-ai", modelID: "llama-3.2-3b-instruct" },
       },
       parts: [{
         id: userTextPartId,
@@ -358,7 +429,7 @@ export class SessionDO extends DurableObject<Env> {
           role: "user",
           time: { created: now },
           agent: body.agent || "default",
-          model: { providerID: "workers-ai", modelID: "llama-3.3-70b-instruct-fp8-fast" },
+          model: { providerID: "workers-ai", modelID: "llama-3.2-3b-instruct" },
         },
       },
     });
@@ -389,7 +460,7 @@ export class SessionDO extends DurableObject<Env> {
           time: { created: now },
           summary: { diffs: [] },
           agent: body.agent || "default",
-          model: { providerID: "workers-ai", modelID: "llama-3.3-70b-instruct-fp8-fast" },
+          model: { providerID: "workers-ai", modelID: "llama-3.2-3b-instruct" },
         },
       },
     });
@@ -402,7 +473,7 @@ export class SessionDO extends DurableObject<Env> {
       role: "assistant" as const,
       time: { created: now },
       parentID: userMessageId,
-      modelID: "llama-3.3-70b-instruct-fp8-fast",
+      modelID: "llama-3.2-3b-instruct",
       providerID: "workers-ai",
       mode: "build",
       agent: body.agent || "default",
@@ -445,7 +516,7 @@ export class SessionDO extends DurableObject<Env> {
     // Call Workers AI (non-streaming for stability)
     let fullText = "";
     try {
-      const response = await this.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+      const response = await this.env.AI.run("@cf/meta/llama-3.2-3b-instruct", {
         messages: [
           { role: "system", content: "You are a helpful coding assistant. Be concise." },
           { role: "user", content: text },
@@ -683,7 +754,7 @@ app.get("/config/providers", (c) => {
   return c.json({
     providers: [DEFAULT_PROVIDER],
     default: {
-      "workers-ai": "llama-3.3-70b-instruct-fp8-fast",
+      "workers-ai": "llama-3.2-3b-instruct",
     },
   });
 });
@@ -693,7 +764,7 @@ app.get("/provider", (c) => {
   return c.json({
     all: [DEFAULT_PROVIDER],
     default: {
-      "workers-ai": "llama-3.3-70b-instruct-fp8-fast",
+      "workers-ai": "llama-3.2-3b-instruct",
     },
     connected: ["workers-ai"],
   });
