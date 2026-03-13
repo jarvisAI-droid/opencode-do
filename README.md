@@ -118,46 +118,50 @@ Messages are stored in Durable Object SQLite storage, which persists across hibe
 
 This POC demonstrates the basics, but the architecture supports much more. Here's what could be added:
 
-### Tool Calling
-
-OpenCode's tool system (Read, Write, Edit, Bash, etc.) could absolutely work here. The flow would be:
-
-1. Use a model with function calling support (Llama 3.3 70B, Mistral, etc.)
-2. When the model requests a tool call, emit `tool-call` message parts via SSE
-3. Execute the tool on the Worker/DO side
-4. Return results as `tool-result` parts
-5. Continue the conversation with tool results in context
-
-Workers AI models like `@cf/meta/llama-3.3-70b-instruct-fp8-fast` support function calling natively.
-
 ### File System Access
 
-Several options for giving the AI access to files:
+The cleanest solution is [worker-fs-mount](https://github.com/danlapid/worker-fs-mount), a drop-in replacement for `node:fs/promises` with pluggable backends:
 
-- **[Workers KV](https://developers.cloudflare.com/kv/)** - Key-value storage for simple file operations
-- **[R2](https://developers.cloudflare.com/r2/)** - Object storage for larger files and project archives
-- **[D1](https://developers.cloudflare.com/d1/)** - SQLite database for structured data and file metadata
-- **[Hyperdrive](https://developers.cloudflare.com/hyperdrive/)** - Connect to external databases (Postgres, MySQL)
+- **[durable-object-fs](https://github.com/danlapid/worker-fs-mount/tree/main/packages/durable-object-fs)** - SQLite-backed filesystem in a Durable Object (perfect for per-session workspaces)
+- **[r2-fs](https://github.com/danlapid/worker-fs-mount/tree/main/packages/r2-fs)** - R2-backed filesystem for larger files
+- **[memory-fs](https://github.com/danlapid/worker-fs-mount/tree/main/packages/memory-fs)** - In-memory filesystem for ephemeral use
 
-You could implement Read/Write/Edit tools that operate on R2 objects, giving the AI a persistent workspace.
+This would let you implement Read/Write/Edit tools using standard `fs` APIs, with files persisting in your chosen backend.
+
+### Tool Calling & Code Execution
+
+For running arbitrary code safely, [Dynamic Worker Loaders](https://developers.cloudflare.com/workers/runtime-apis/bindings/worker-loader/) are the way to go:
+
+- Spawn isolated Workers on-demand to execute untrusted code
+- Millisecond startup time (much faster than containers)
+- Full sandboxing: block network access, provide custom bindings
+- Perfect for Bash-like tool execution where the AI generates code
+
+The Cloudflare Agents SDK's [Codemode](https://developers.cloudflare.com/agents/api-reference/codemode/) is built on Dynamic Worker Loaders, giving LLMs a "write code" tool that runs in isolated sandboxes. This pattern would work great here.
+
+For the tool calling flow:
+1. Use a model with function calling support (Llama 3.3 70B, Mistral, etc.)
+2. When the model requests a tool call, emit `tool-call` message parts via SSE
+3. Execute the tool (in a dynamic isolate for untrusted code)
+4. Return results as `tool-result` parts
+5. Continue the conversation with tool results in context
 
 ### Git Operations
 
 Git support could work via:
 
 - **[isomorphic-git](https://isomorphic-git.org/)** - Pure JavaScript git implementation that works in Workers
-- Clone repos to R2 storage
+- Clone repos to R2 or Durable Object storage using worker-fs-mount
 - Implement git operations (status, diff, commit, push) as tools
 - Use GitHub API for remote operations
 
 ### Container Execution
 
-For full Bash/shell support:
+For heavier workloads or full shell environments:
 
 - **[Cloudflare Containers](https://developers.cloudflare.com/containers/)** - Run containers alongside your Worker
-- Spin up ephemeral containers for code execution
+- Spin up ephemeral containers for builds, tests, complex toolchains
 - Mount R2 storage as the filesystem
-- Execute arbitrary commands safely in isolation
 
 ### Better Models
 
